@@ -18,6 +18,8 @@ Oyunların HTML dosyaları tarayıcıda açılarak oynanabilir.
 
 ## 🎮 Oyunları Oyna
 
-[🏃 Piramitten Kaçış - OYNA](./Piramitten_Kacis.html)
+[🏃 Piramitten Kaçış - OYNA](https://arasmortepe.github.io/-dev/Piramitten_Kacis.html)
 
-[🧠 Hızlı Kelimeler - OYNA](./hizli%20kelimeler.html)
+[🧠 Hızlı Kelimeler - OYNA](https://arasmortepe.github.io/-dev/h%C4%B1zl%C4%B1%20kelimeler.html)
+
+
