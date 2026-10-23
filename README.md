@@ -15,3 +15,9 @@ Ekranda hızlıca gösterilen kelimeleri akılda tutarak VAR/YOK sorularını do
 
 ## Nasıl Oynanır?
 Oyunların HTML dosyaları tarayıcıda açılarak oynanabilir.
+
+## 🎮 Oyunları Oyna
+
+[🏃 Piramitten Kaçış - OYNA](./Piramitten_Kacis.html)
+
+[🧠 Hızlı Kelimeler - OYNA](./hizli%20kelimeler.html)
