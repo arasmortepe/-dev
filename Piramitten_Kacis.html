@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piramitten Kaçış - Zor Sürüm</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#100b07;font-family:Arial,sans-serif}
+*{box-sizing:border-box}canvas{display:block;width:100%;height:100%;background:#171008}
+#hud{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:3;color:#fff7d6;background:#20160ddd;border:1px solid #b98942;padding:10px 18px;border-radius:12px;font-weight:800;white-space:nowrap}
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#080502aa;z-index:5}
+.card{width:min(92vw,520px);padding:28px;border-radius:18px;background:#21170d;color:#f7e6b7;border:2px solid #9d6a2b;text-align:center;box-shadow:0 20px 60px #000}
+h1{font-size:42px;margin:0 0 10px;color:#ffd166}p{line-height:1.5;color:#ead7aa}.hidden{display:none!important}
+button{border:0;border-radius:12px;padding:14px 22px;margin:7px;font-size:18px;font-weight:800;background:#d99a35;color:#201308;cursor:pointer}
+small{color:#cbb98e}kbd{background:#49351f;color:#fff;padding:3px 7px;border-radius:5px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud" class="hidden">❤️ <span id="lives">3</span> &nbsp; | &nbsp; BÖLÜM <span id="level">1</span>/5 &nbsp; | &nbsp; 💎 <span id="gems">0</span> &nbsp; | &nbsp; ⭐ SKOR <span id="score">0</span></div>
+
+<div id="menu" class="screen">
+ <div class="card">
+  <h1>🏺 PİRAMİTTEN KAÇIŞ</h1>
+  <p>Bu sürüm daha zor: <b>daha fazla ok tuzağı, lav çukurları, çöken zeminler, gizli dikenler ve düşen taşlar</b> var.</p>
+  <p><kbd>A</kbd>/<kbd>D</kbd> veya <kbd>←</kbd>/<kbd>→</kbd> hareket &nbsp; <kbd>W</kbd>/<kbd>SPACE</kbd> zıplama</p>
+  <div style="margin:14px 0;font-weight:800;color:#ffd166">🏆 EN YÜKSEK SKOR: <span id="bestScore">0</span></div><button id="play">OYNA</button>
+  <div><small>Zorlaştırılmış 5 bölümlük sürüm</small></div>
+ </div>
+</div>
+
+<div id="message" class="screen hidden">
+ <div class="card">
+  <h1 id="msgTitle">Bölüm Tamamlandı</h1>
+  <p id="msgText"></p>
+  <button id="continueBtn">DEVAM ET</button>
+ </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const c=document.getElementById("game"),ctx=c.getContext("2d");
+const hud=document.getElementById("hud"),menu=document.getElementById("menu"),message=document.getElementById("message");
+const livesEl=document.getElementById("lives"),levelEl=document.getElementById("level"),gemsEl=document.getElementById("gems");
+const msgTitle=document.getElementById("msgTitle"),msgText=document.getElementById("msgText"),continueBtn=document.getElementById("continueBtn");
+
+let W=960,H=540,scale=1,offX=0,offY=0,keys={},running=false,last=0,level=0,lives=3,gems=0,score=0,nextAction=null;
+let bestScore=0;
+try{bestScore=parseInt(localStorage.getItem("piramittenKacisBest")||"0",10)||0}catch(e){}
+const scoreEl=document.getElementById("score"),bestScoreEl=document.getElementById("bestScore");
+bestScoreEl.textContent=bestScore;
+let player={x:50,y:400,w:28,h:42,vx:0,vy:0,onGround:false,spawnX:50,spawnY:400};
+let platforms=[],spikes=[],treasures=[],exit={x:880,y:390,w:42,h:70},moving=[];
+let hiddenSpikes=[],crumbles=[],rocks=[],fakeTreasures=[],darts=[],lava=[];
+
+const levels=[
+ {spawn:[45,430],exit:[895,390],plats:[[0,480,960,60],[180,400,120,20],[390,350,120,20],[610,410,120,20],[810,350,150,20]],
+  spikes:[[530,460,65,20]],gems:[[230,365],[665,375]],
+  hiddenSpikes:[[310,460,70,20,120]],crumbles:[[390,350,120,20]],fake:[[440,315]],
+  rocks:[[735,60,34,34,720]],
+  darts:[[585,385,1],[120,455,1],[900,325,-1]],
+  lava:[[180,470,50,10],[820,470,55,10]]},
+
+ {spawn:[45,430],exit:[900,190],plats:[[0,480,960,60],[130,410,120,20],[310,340,105,20],[485,285,100,20],[650,230,110,20],[825,250,135,20]],
+  spikes:[[420,460,60,20]],gems:[[175,375],[690,195]],moving:[[500,400,110,18,90]],
+  hiddenSpikes:[[250,460,55,20,110],[770,460,50,20,100]],crumbles:[[650,230,110,20]],fake:[[350,305]],
+  rocks:[[585,70,34,34,560],[860,70,34,34,830]],
+  darts:[[795,225,-1],[200,395,1],[520,265,1],[905,455,-1]],
+  lava:[[540,470,60,10],[690,470,55,10]]},
+
+ {spawn:[45,430],exit:[900,390],plats:[[0,480,180,60],[270,480,140,60],[505,480,130,60],[730,480,230,60],[150,360,110,20],[360,300,110,20],[570,350,110,20],[760,290,100,20]],
+  spikes:[[410,500,95,40]],gems:[[195,325],[615,315],[800,255]],moving:[[440,410,90,18,120]],
+  hiddenSpikes:[[180,500,90,40,100],[635,500,95,40,120]],crumbles:[[360,300,110,20],[760,290,100,20]],fake:[[405,265]],
+  rocks:[[520,60,36,36,500],[700,40,36,36,690]],
+  darts:[[720,455,-1],[110,340,1],[560,325,1],[910,275,-1]],
+  lava:[]},
+
+ {spawn:[45,430],exit:[895,120],plats:[[0,480,960,60],[120,405,110,20],[300,345,110,20],[500,285,110,20],[700,225,110,20],[840,180,120,20]],
+  spikes:[[430,460,55,20]],gems:[[160,370],[540,250],[740,190]],moving:[[580,390,100,18,110],[250,230,100,18,85]],
+  hiddenSpikes:[[235,460,55,20,100],[815,460,35,20,90]],crumbles:[[500,285,110,20]],fake:[[340,310]],
+  rocks:[[660,40,38,38,650]],
+  darts:[[280,320,1],[820,160,-1],[110,390,1],[610,260,-1]],
+  lava:[[535,470,65,10],[735,470,40,10]]},
+
+ {spawn:[45,430],exit:[900,105],plats:[[0,480,150,60],[220,430,100,20],[380,360,100,20],[540,290,100,20],[700,220,100,20],[850,165,110,20]],
+  spikes:[[320,500,60,40],[640,500,60,40]],gems:[[255,395],[575,255],[885,130]],moving:[[135,330,90,18,95],[465,220,90,18,100]],
+  hiddenSpikes:[[150,500,70,40,100],[480,500,60,40,95],[800,500,50,40,90]],crumbles:[[380,360,100,20],[700,220,100,20]],
+  fake:[[415,325],[735,185]],
+  rocks:[[500,35,40,40,480],[780,30,40,40,760]],
+  darts:[[525,265,1],[830,140,-1],[100,420,1],[360,340,1],[920,210,-1]],
+  lava:[[220,470,45,10],[555,470,50,10],[860,470,55,10]]}
+];
+
+function resize(){
+ const dpr=Math.min(devicePixelRatio||1,2);
+ c.width=innerWidth*dpr;c.height=innerHeight*dpr;c.style.width=innerWidth+"px";c.style.height=innerHeight+"px";
+ scale=Math.min(innerWidth/W,innerHeight/H);offX=(innerWidth-W*scale)/2;offY=(innerHeight-H*scale)/2;
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ draw();
+}
+addEventListener("resize",resize);
+
+function loadLevel(i){
+ level=i;const L=levels[i];
+ platforms=L.plats.map(a=>({x:a[0],y:a[1],w:a[2],h:a[3]}));
+ spikes=L.spikes.map(a=>({x:a[0],y:a[1],w:a[2],h:a[3]}));
+ hiddenSpikes=(L.hiddenSpikes||[]).map(a=>({x:a[0],y:a[1],w:a[2],h:a[3],trigger:a[4],active:false,raise:0}));
+ crumbles=(L.crumbles||[]).map(a=>({x:a[0],y:a[1],w:a[2],h:a[3],state:"solid",timer:0,drop:0}));
+ treasures=L.gems.map(a=>({x:a[0],y:a[1],r:10,taken:false}));
+ fakeTreasures=(L.fake||[]).map(a=>({x:a[0],y:a[1],r:10,taken:false,triggered:false}));
+ rocks=(L.rocks||[]).map(a=>({x:a[0],y:a[1],w:a[2],h:a[3],triggerX:a[4],fall:false,vy:0,dead:false}));
+ darts=(L.darts||[]).map(a=>({baseX:a[0],x:a[0],y:a[1],dir:a[2],active:false,shot:false,vx:0,w:22,h:6,cool:0}));
+ lava=(L.lava||[]).map(a=>({x:a[0],y:a[1],w:a[2],h:a[3],phase:Math.random()*6}));
+ exit={x:L.exit[0],y:L.exit[1],w:42,h:70};
+ moving=(L.moving||[]).map((a,k)=>({x:a[0],baseX:a[0],y:a[1],w:a[2],h:a[3],range:a[4],phase:k*2}));
+ player.x=L.spawn[0];player.y=L.spawn[1];player.spawnX=L.spawn[0];player.spawnY=L.spawn[1];player.vx=0;player.vy=0;
+ levelEl.textContent=i+1;
+ draw();
+}
+
+function start(){
+ lives=3;gems=0;score=0;livesEl.textContent=lives;gemsEl.textContent=gems;scoreEl.textContent=score;
+ menu.classList.add("hidden");message.classList.add("hidden");hud.classList.remove("hidden");
+ loadLevel(0);running=true;last=performance.now();requestAnimationFrame(loop)
+}
+function hit(){
+ lives--;livesEl.textContent=lives;
+ if(lives<=0){
+   if(score>bestScore){bestScore=score;bestScoreEl.textContent=bestScore;try{localStorage.setItem("piramittenKacisBest",String(bestScore))}catch(e){}}
+   showMessage("OYUN BİTTİ","Piramidin ölümcül tuzaklarına yakalandın. Toplanan gerçek hazine: "+gems,"TEKRAR OYNA",start)
+ }else{
+   player.x=player.spawnX;player.y=player.spawnY;player.vx=player.vy=0;
+ }
+}
+function showMessage(title,text,button,action){
+ running=false;msgTitle.textContent=title;msgText.textContent=text;continueBtn.textContent=button;nextAction=action;message.classList.remove("hidden")
+}
+function rectHit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+
+function update(dt,t){
+ const speed=230,gravity=1050;
+ player.vx=0;if(keys.a||keys.arrowleft)player.vx=-speed;if(keys.d||keys.arrowright)player.vx=speed;
+ player.vy+=gravity*dt;player.x+=player.vx*dt;player.x=Math.max(0,Math.min(W-player.w,player.x));
+ let oldBottom=player.y+player.h;player.y+=player.vy*dt;player.onGround=false;
+
+ moving.forEach(m=>m.x=m.baseX+Math.sin(t*.0018+m.phase)*m.range);
+
+ hiddenSpikes.forEach(s=>{
+   if(Math.abs((player.x+player.w/2)-(s.x+s.w/2))<s.trigger)s.active=true;
+   if(s.active)s.raise=Math.min(1,s.raise+dt*6.5);
+ });
+
+ crumbles.forEach(p=>{
+   if(p.state==="breaking"){p.timer-=dt;if(p.timer<=0)p.state="falling"}
+   if(p.state==="falling")p.drop+=280*dt;
+ });
+
+ rocks.forEach(r=>{
+   if(!r.fall && !r.dead && player.x>r.triggerX-85 && player.x<r.triggerX+85)r.fall=true;
+   if(r.fall){r.vy+=920*dt;r.y+=r.vy*dt;if(r.y>H+80)r.dead=true}
+ });
+
+ darts.forEach(d=>{
+   d.cool -= dt;
+   let trigger = Math.abs(player.x-d.baseX)<170;
+   if((!d.shot && trigger) || (d.cool<=0 && trigger && !d.active)){
+      d.shot=true;d.active=true;d.vx=400*d.dir;d.x=d.baseX;d.cool=1.7;
+   }
+   if(d.active){
+      d.x+=d.vx*dt;
+      if(d.x<-80||d.x>W+80){d.active=false}
+   }
+ });
+
+ const solids=platforms
+   .concat(moving)
+   .concat(crumbles.filter(p=>p.state!=="falling").map(p=>({x:p.x,y:p.y+p.drop,w:p.w,h:p.h,crumble:p})));
+
+ for(const p of solids){
+   if(player.x+player.w>p.x&&player.x<p.x+p.w&&oldBottom<=p.y+8&&player.y+player.h>=p.y&&player.vy>=0){
+     player.y=p.y-player.h;player.vy=0;player.onGround=true;
+     if(p.crumble && p.crumble.state==="solid"){p.crumble.state="breaking";p.crumble.timer=.48}
+   }
+ }
+
+ for(const s of spikes)if(rectHit(player,s)){hit();return}
+ for(const s of hiddenSpikes){
+   if(s.raise>.45){
+     let trap={x:s.x,y:s.y+s.h*(1-s.raise),w:s.w,h:s.h*s.raise};
+     if(rectHit(player,trap)){hit();return}
+   }
+ }
+ for(const r of rocks)if(!r.dead&&rectHit(player,r)){hit();return}
+ for(const d of darts)if(d.active&&rectHit(player,d)){hit();return}
+ for(const lv of lava){
+   let waveY = lv.y + Math.sin(t*.006 + lv.phase)*3;
+   let hitbox = {x:lv.x, y:waveY-4, w:lv.w, h:lv.h+8};
+   if(rectHit(player, hitbox)){hit();return}
+ }
+ if(player.y>H+80){hit();return}
+
+ treasures.forEach(g=>{
+   if(!g.taken&&player.x<g.x+12&&player.x+player.w>g.x-12&&player.y<g.y+12&&player.y+player.h>g.y-12){
+     g.taken=true;gems++;score+=100;gemsEl.textContent=gems;scoreEl.textContent=score
+   }
+ });
+
+ fakeTreasures.forEach(g=>{
+   if(!g.taken&&player.x<g.x+12&&player.x+player.w>g.x-12&&player.y<g.y+12&&player.y+player.h>g.y-12){
+     g.taken=true;g.triggered=true;
+     hiddenSpikes.forEach(s=>{if(Math.abs(s.x-g.x)<190)s.active=true});
+     rocks.forEach(r=>{if(Math.abs(r.x-g.x)<240)r.fall=true});
+     darts.forEach(d=>{if(Math.abs(d.baseX-g.x)<260){d.active=true;d.shot=true;d.vx=400*d.dir;d.x=d.baseX;d.cool=1.5}});
+   }
+ });
+
+ if(rectHit(player,exit)){
+   score+=500;scoreEl.textContent=score;
+   if(score>bestScore){bestScore=score;bestScoreEl.textContent=bestScore;try{localStorage.setItem("piramittenKacisBest",String(bestScore))}catch(e){}}
+   if(level===levels.length-1){
+     showMessage("KAÇTIN! 🏆","Piramidin çıkışını buldun! Toplam gerçek hazine: "+gems,"BAŞTAN OYNA",start);
+   } else {
+     showMessage("BÖLÜM "+(level+1)+" TAMAMLANDI","Bir sonraki odada tuzaklar daha ölümcül olacak...","SONRAKİ BÖLÜM",()=>{
+       message.classList.add("hidden");loadLevel(level+1);running=true;last=performance.now();requestAnimationFrame(loop)
+     });
+   }
+ }
+}
+
+function draw(){
+ ctx.clearRect(0,0,innerWidth,innerHeight);
+ ctx.save();ctx.translate(offX,offY);ctx.scale(scale,scale);
+
+ ctx.fillStyle="#2b1b0d";ctx.fillRect(0,0,W,H);
+ for(let y=0;y<H;y+=45){
+   for(let x=(y/45%2)*-45;x<W;x+=90){
+     ctx.strokeStyle="#5b3b1d";ctx.strokeRect(x,y,90,45)
+   }
+ }
+ for(let x=110;x<W;x+=250){
+   ctx.fillStyle="#6d4420";ctx.fillRect(x,90,8,35);
+   ctx.fillStyle="#ffb000";ctx.beginPath();ctx.arc(x+4,82,10,0,7);ctx.fill()
+ }
+
+ ctx.fillStyle="#9a6b35";platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+ ctx.fillStyle="#c48b46";moving.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+
+ crumbles.forEach(p=>{
+   if(p.state!=="falling"){
+     let yy=p.y+p.drop;
+     ctx.fillStyle="#94704b";ctx.fillRect(p.x,yy,p.w,p.h);
+     ctx.strokeStyle="#6f4d2d";
+     ctx.beginPath();
+     ctx.moveTo(p.x+p.w*.30,yy+4);ctx.lineTo(p.x+p.w*.42,yy+11);ctx.lineTo(p.x+p.w*.56,yy+5);
+     ctx.stroke();
+   }
+ });
+
+ // lava
+ lava.forEach(lv=>{
+   ctx.fillStyle="#ff5b1f";ctx.fillRect(lv.x,lv.y,lv.w,lv.h);
+   ctx.fillStyle="#ff9a1f";
+   for(let i=0;i<lv.w;i+=14){
+     ctx.beginPath();
+     ctx.arc(lv.x+i+7, lv.y + Math.sin(i*.4 + performance.now()*.01 + lv.phase)*2, 5, 0, Math.PI*2);
+     ctx.fill();
+   }
+   ctx.fillStyle="#ffcf33";
+   for(let i=0;i<lv.w;i+=18){
+     ctx.beginPath();
+     ctx.arc(lv.x+i+6, lv.y+2, 2.5, 0, Math.PI*2);
+     ctx.fill();
+   }
+ });
+
+ ctx.fillStyle="#d8d2c4";
+ spikes.forEach(s=>drawSpikes(s.x,s.y,s.w,s.h));
+ hiddenSpikes.forEach(s=>{if(s.raise>0){let hh=s.h*s.raise;drawSpikes(s.x,s.y+s.h-hh,s.w,hh)}});
+
+ function drawSpikes(x,y,w,h){
+   let n=Math.max(1,Math.floor(w/18));
+   for(let i=0;i<n;i++){
+     let xx=x+i*w/n;
+     ctx.beginPath();ctx.moveTo(xx,y+h);ctx.lineTo(xx+w/n/2,y);ctx.lineTo(xx+w/n,y+h);ctx.fill();
+   }
+ }
+
+ treasures.forEach(g=>{if(!g.taken)drawGem(g.x,g.y,"#55d6ff")});
+ fakeTreasures.forEach(g=>{if(!g.taken)drawGem(g.x,g.y,"#67e3ff")});
+
+ function drawGem(x,y,col){
+   ctx.fillStyle=col;
+   ctx.beginPath();ctx.moveTo(x,y-11);ctx.lineTo(x+10,y);ctx.lineTo(x,y+11);ctx.lineTo(x-10,y);ctx.closePath();ctx.fill()
+ }
+
+ rocks.forEach(r=>{
+   if(!r.dead){
+     ctx.fillStyle="#77644d";
+     ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,r.w/2,0,Math.PI*2);ctx.fill();
+   }
+ });
+
+ darts.forEach(d=>{
+   // shooter slot
+   ctx.fillStyle="#5d5449";
+   ctx.fillRect(d.baseX-6, d.y-6, 12, 18);
+   if(d.active){
+     ctx.fillStyle="#d8d2c4";
+     ctx.fillRect(d.x,d.y,d.w,d.h);
+     ctx.beginPath();
+     ctx.moveTo(d.x+(d.dir>0?d.w:0),d.y-4);
+     ctx.lineTo(d.x+(d.dir>0?d.w+10:-10),d.y+3);
+     ctx.lineTo(d.x+(d.dir>0?d.w:0),d.y+10);
+     ctx.fill();
+   }
+ });
+
+ ctx.fillStyle="#4c2d15";ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
+ ctx.fillStyle="#ffd166";ctx.fillRect(exit.x+8,exit.y+10,26,60);
+ ctx.fillStyle="#3b250f";ctx.fillRect(exit.x+13,exit.y+16,16,54);
+
+ ctx.fillStyle="#e7b66d";ctx.fillRect(player.x+5,player.y,18,15);
+ ctx.fillStyle="#d69a38";ctx.fillRect(player.x+1,player.y-4,26,6);
+ ctx.fillStyle="#e6d2a2";ctx.fillRect(player.x+4,player.y+15,20,18);
+ ctx.fillStyle="#6c4a2c";ctx.fillRect(player.x+3,player.y+33,9,9);ctx.fillRect(player.x+16,player.y+33,9,9);
+
+ ctx.restore();
+}
+
+function loop(t){
+ if(!running)return;
+ let dt=Math.min((t-last)/1000,.035);last=t;update(dt,t);draw();
+ if(running)requestAnimationFrame(loop)
+}
+function jump(){if(running&&player.onGround){player.vy=-440;player.onGround=false}}
+addEventListener("keydown",e=>{
+ let k=e.key.toLowerCase();keys[k]=true;
+ if(k===" "||k==="w"||k==="arrowup"){e.preventDefault();jump()}
+});
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+document.getElementById("play").onclick=start;
+continueBtn.onclick=()=>{message.classList.add("hidden");if(nextAction)nextAction()};
+
+resize();
+})();
+</script>
+</body>
+</html>
